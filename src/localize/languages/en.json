@@ -1,0 +1,29 @@
+{
+  "common": {
+    "version": "Version",
+    "invalid_configuration": "Invalid configuration"
+  },
+  "state": {
+    "off": "Off",
+    "on": "On",
+    "unavailable": "Unavailable",
+    "speed": "Speed {active} of {total}",
+    "forward": "Forward",
+    "reverse": "Reverse"
+  },
+  "error": {
+    "entity_required": "You must specify an entity from the fan domain (e.g. fan.bedroom_fan)",
+    "entity_not_fan": "Entity must be from the fan domain, got: ",
+    "speed_count_invalid": "speed_count must be an integer between 2 and 10",
+    "default_speed_invalid": "default_speed must be an integer between 1 and 10 and must not exceed speed_count",
+    "entity_not_found": "Entity not found: ",
+    "no_discrete_speeds": "This entity does not expose discrete speeds (no percentage_step attribute). Set speed_count in the card config, or use a stock fan card."
+  },
+  "label": {
+    "all_off": "All off",
+    "light": "Light",
+    "speed": "Speed",
+    "direction": "Direction",
+    "switch_direction": "Switch direction to {direction}"
+  }
+}
