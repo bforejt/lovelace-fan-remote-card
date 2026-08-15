@@ -43,6 +43,23 @@ interface WindowWithCustomCards extends Window {
   documentationURL: 'https://github.com/bforejt/lovelace-fan-remote-card',
 });
 
+// Everything both layouts need, derived once per render.
+interface RenderCtx {
+  showSpeeds: boolean;
+  speedCount: number | null;
+  unavailable: boolean;
+  isOn: boolean;
+  active: number;
+  name: string;
+  showDirection: boolean;
+  directionReverse: boolean;
+  running: boolean;
+  spinPeriod: string;
+  status: string;
+  lightObj?: HassEntity;
+  lightOn: boolean;
+}
+
 @customElement('fan-remote-card')
 export class FanRemoteCard extends LitElement {
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
@@ -98,10 +115,14 @@ export class FanRemoteCard extends LitElement {
     ) {
       throw new Error(localize('error.default_speed_invalid'));
     }
+    if (config.layout !== undefined && config.layout !== 'card' && config.layout !== 'row') {
+      throw new Error(localize('error.layout_invalid'));
+    }
 
     this.config = {
       show_direction: false,
       show_speeds: true,
+      layout: 'card',
       ...config,
     };
   }
@@ -109,7 +130,20 @@ export class FanRemoteCard extends LitElement {
   // Sizing consults hass when it is set (it usually is at layout time) so
   // derived speed counts and direction support size correctly; the
   // config-only estimate is the fallback for early calls.
+  private _knownSpeedCount(): number {
+    const stateObj = this.hass?.states?.[this.config?.entity ?? ''];
+    let speedCount = this.config?.speed_count ?? 0;
+    if (!speedCount && stateObj) {
+      speedCount = this._speedCount(stateObj) ?? 0;
+    }
+    return speedCount;
+  }
+
   private _configRows(): number {
+    if (this.config?.layout === 'row') {
+      // >6 speeds stack the digits two-high inside the bar.
+      return this.config?.show_speeds !== false && this._knownSpeedCount() > 6 ? 2 : 1;
+    }
     const stateObj = this.hass?.states?.[this.config?.entity ?? ''];
     if (this.config?.show_speeds === false) {
       const supportsDirection = stateObj
@@ -117,22 +151,21 @@ export class FanRemoteCard extends LitElement {
         : true;
       return this.config?.show_direction && supportsDirection ? 3 : 2;
     }
-    let speedCount = this.config?.speed_count ?? 0;
-    if (!speedCount && stateObj) {
-      speedCount = this._speedCount(stateObj) ?? 0;
-    }
-    return speedCount > 6 ? 4 : 3;
+    return this._knownSpeedCount() > 6 ? 4 : 3;
   }
 
   public getCardSize(): number {
-    return this._configRows() + 1;
+    return this.config?.layout === 'row' ? this._configRows() : this._configRows() + 1;
   }
 
   public getGridOptions(): Record<string, number> {
     const rows = this._configRows();
+    // A row showing speed digits needs real width — full section span keeps
+    // the sections resizer from squeezing digits toward the other controls.
+    const minColumns = this.config?.layout === 'row' && this.config?.show_speeds !== false ? 12 : 6;
     return {
       columns: 12,
-      min_columns: 6,
+      min_columns: minColumns,
       rows,
       min_rows: Math.min(3, rows),
     };
@@ -246,12 +279,93 @@ export class FanRemoteCard extends LitElement {
     const lightObj = this.config.light_entity ? this.hass.states[this.config.light_entity] : undefined;
     const lightOn = lightObj?.state === 'on';
 
+    const ctx: RenderCtx = {
+      showSpeeds,
+      speedCount,
+      unavailable,
+      isOn,
+      active,
+      name,
+      showDirection,
+      directionReverse,
+      running,
+      spinPeriod,
+      status,
+      lightObj,
+      lightOn,
+    };
+
+    return this.config.layout === 'row' ? this._renderRow(ctx) : this._renderCard(ctx);
+  }
+
+  private _renderFanIcon(ctx: RenderCtx): TemplateResult {
     return html`
-      <ha-card class=${classMap({ unavailable })}>
+      <ha-icon
+        class=${classMap({ 'fan-icon': true, on: ctx.running, spinning: ctx.running })}
+        icon=${this.config.icon ?? 'mdi:fan'}
+        style=${ctx.running ? `animation-duration: ${ctx.spinPeriod}s` : ''}
+      ></ha-icon>
+    `;
+  }
+
+  private _renderSpeedButtons(ctx: RenderCtx): TemplateResult[] {
+    return Array.from({ length: ctx.speedCount as number }, (_, index) => index + 1).map(
+      (speed) => html`
+        <button
+          class=${classMap({ segment: true, active: speed === ctx.active })}
+          .disabled=${ctx.unavailable}
+          aria-pressed=${speed === ctx.active}
+          aria-label=${`${localize('label.speed')} ${speed}`}
+          @click=${(): void => this._handleSpeedTap(speed, ctx.speedCount as number)}
+        >
+          ${speed}
+        </button>
+      `,
+    );
+  }
+
+  private _renderDirectionToggle(ctx: RenderCtx): TemplateResult {
+    return html`
+      <button
+        class="segment direction"
+        .disabled=${ctx.unavailable}
+        aria-label=${localize('label.switch_direction', {
+          direction: localize(ctx.directionReverse ? 'state.forward' : 'state.reverse'),
+        })}
+        @click=${this._handleDirectionToggle}
+      >
+        <ha-icon icon=${ctx.directionReverse ? 'mdi:rotate-left' : 'mdi:rotate-right'}></ha-icon>
+      </button>
+    `;
+  }
+
+  private _renderDirectionPair(ctx: RenderCtx, iconOnly: boolean): TemplateResult[] {
+    return (['forward', 'reverse'] as const).map((direction) => {
+      const isReverse = direction === 'reverse';
+      const active = ctx.isOn && ctx.directionReverse === isReverse;
+      return html`
+        <button
+          class=${classMap({ segment: true, 'dir-seg': true, 'dir-icon': iconOnly, active })}
+          .disabled=${ctx.unavailable}
+          aria-pressed=${active}
+          aria-label=${localize(isReverse ? 'state.reverse' : 'state.forward')}
+          @click=${(): void => this._setDirection(direction)}
+        >
+          <ha-icon icon=${isReverse ? 'mdi:rotate-left' : 'mdi:rotate-right'}></ha-icon>${iconOnly
+            ? nothing
+            : localize(isReverse ? 'state.reverse' : 'state.forward')}
+        </button>
+      `;
+    });
+  }
+
+  private _renderCard(ctx: RenderCtx): TemplateResult {
+    return html`
+      <ha-card class=${classMap({ unavailable: ctx.unavailable })}>
         <ha-icon-button
-          class="corner top-left ${running || lightOn ? 'power-on' : ''}"
+          class="corner top-left ${ctx.running || ctx.lightOn ? 'power-on' : ''}"
           .label=${localize('label.all_off')}
-          .disabled=${unavailable}
+          .disabled=${ctx.unavailable}
           @click=${this._handleAllOff}
         >
           <ha-icon icon="mdi:power"></ha-icon>
@@ -260,9 +374,9 @@ export class FanRemoteCard extends LitElement {
         ${this.config.light_entity
           ? html`
               <ha-icon-button
-                class="corner top-right ${lightOn ? 'light-on' : ''}"
+                class="corner top-right ${ctx.lightOn ? 'light-on' : ''}"
                 .label=${localize('label.light')}
-                .disabled=${!lightObj || lightObj.state === 'unavailable'}
+                .disabled=${!ctx.lightObj || ctx.lightObj.state === 'unavailable'}
                 @click=${this._handleLightToggle}
               >
                 <ha-icon icon="mdi:lightbulb"></ha-icon>
@@ -274,62 +388,33 @@ export class FanRemoteCard extends LitElement {
           class="center"
           role="button"
           tabindex="0"
-          aria-label=${name}
-          aria-disabled=${unavailable}
+          aria-label=${`${ctx.name}: ${ctx.status}`}
+          aria-disabled=${ctx.unavailable}
           @action=${this._handleFanAction}
           ${actionHandler({ hasHold: true })}
         >
-          <ha-icon
-            class=${classMap({ 'fan-icon': true, on: running, spinning: running })}
-            icon=${this.config.icon ?? 'mdi:fan'}
-            style=${running ? `animation-duration: ${spinPeriod}s` : ''}
-          ></ha-icon>
-          <div class="name">${name}</div>
-          <div class="status">${status}</div>
+          ${this._renderFanIcon(ctx)}
+          <div class="name">${ctx.name}</div>
+          <div class="status">${ctx.status}</div>
         </div>
 
-        ${showSpeeds
+        ${ctx.showSpeeds
           ? html`
               <div class="controls">
                 <div
                   class="segments"
                   role="group"
                   aria-label=${localize('label.speed')}
-                  style="grid-template-columns: repeat(${(speedCount as number) > 6
-                    ? Math.ceil((speedCount as number) / 2)
-                    : speedCount}, 1fr)"
+                  style="grid-template-columns: repeat(${(ctx.speedCount as number) > 6
+                    ? Math.ceil((ctx.speedCount as number) / 2)
+                    : ctx.speedCount}, 1fr)"
                 >
-                  ${Array.from({ length: speedCount as number }, (_, index) => index + 1).map(
-                    (speed) => html`
-                      <button
-                        class=${classMap({ segment: true, active: speed === active })}
-                        .disabled=${unavailable}
-                        aria-pressed=${speed === active}
-                        aria-label=${`${localize('label.speed')} ${speed}`}
-                        @click=${(): void => this._handleSpeedTap(speed, speedCount as number)}
-                      >
-                        ${speed}
-                      </button>
-                    `,
-                  )}
+                  ${this._renderSpeedButtons(ctx)}
                 </div>
-                ${showDirection
-                  ? html`
-                      <button
-                        class="segment direction"
-                        .disabled=${unavailable}
-                        aria-label=${localize('label.switch_direction', {
-                          direction: localize(directionReverse ? 'state.forward' : 'state.reverse'),
-                        })}
-                        @click=${this._handleDirectionToggle}
-                      >
-                        <ha-icon icon=${directionReverse ? 'mdi:rotate-left' : 'mdi:rotate-right'}></ha-icon>
-                      </button>
-                    `
-                  : nothing}
+                ${ctx.showDirection ? this._renderDirectionToggle(ctx) : nothing}
               </div>
             `
-          : showDirection
+          : ctx.showDirection
             ? html`
                 <div class="controls">
                   <div
@@ -338,26 +423,83 @@ export class FanRemoteCard extends LitElement {
                     aria-label=${localize('label.direction')}
                     style="grid-template-columns: repeat(2, 1fr)"
                   >
-                    <button
-                      class=${classMap({ segment: true, 'dir-seg': true, active: isOn && !directionReverse })}
-                      .disabled=${unavailable}
-                      aria-pressed=${isOn && !directionReverse}
-                      @click=${(): void => this._setDirection('forward')}
-                    >
-                      <ha-icon icon="mdi:rotate-right"></ha-icon>${localize('state.forward')}
-                    </button>
-                    <button
-                      class=${classMap({ segment: true, 'dir-seg': true, active: isOn && directionReverse })}
-                      .disabled=${unavailable}
-                      aria-pressed=${isOn && directionReverse}
-                      @click=${(): void => this._setDirection('reverse')}
-                    >
-                      <ha-icon icon="mdi:rotate-left"></ha-icon>${localize('state.reverse')}
-                    </button>
+                    ${this._renderDirectionPair(ctx, false)}
                   </div>
                 </div>
               `
             : nothing}
+      </ha-card>
+    `;
+  }
+
+  // Compact single-line variant (layout: row): icon chip + name/status act as
+  // the master power; speed digits replace the stock slider; direction, light
+  // and all-off ride in the same bar.
+  private _renderRow(ctx: RenderCtx): TemplateResult {
+    return html`
+      <ha-card class=${classMap({ unavailable: ctx.unavailable, 'row-card': true })}>
+        <div
+          class="row-main"
+          role="button"
+          tabindex="0"
+          aria-label=${`${ctx.name}: ${ctx.status}`}
+          aria-disabled=${ctx.unavailable}
+          @action=${this._handleFanAction}
+          ${actionHandler({ hasHold: true })}
+        >
+          <div class="row-icon">${this._renderFanIcon(ctx)}</div>
+          <div class="row-info">
+            <div class="name">${ctx.name}</div>
+            <div class="status">${ctx.status}</div>
+          </div>
+        </div>
+
+        ${ctx.showSpeeds
+          ? html`
+              <div
+                class="segments"
+                role="group"
+                aria-label=${localize('label.speed')}
+                style="grid-template-columns: repeat(${(ctx.speedCount as number) > 6
+                  ? Math.ceil((ctx.speedCount as number) / 2)
+                  : ctx.speedCount}, minmax(30px, 38px))"
+              >
+                ${this._renderSpeedButtons(ctx)}
+              </div>
+              ${ctx.showDirection ? this._renderDirectionToggle(ctx) : nothing}
+            `
+          : ctx.showDirection
+            ? html`
+                <div
+                  class="segments"
+                  role="group"
+                  aria-label=${localize('label.direction')}
+                  style="grid-template-columns: repeat(2, 44px)"
+                >
+                  ${this._renderDirectionPair(ctx, true)}
+                </div>
+              `
+            : nothing}
+        ${this.config.light_entity
+          ? html`
+              <ha-icon-button
+                class="row-btn ${ctx.lightOn ? 'light-on' : ''}"
+                .label=${localize('label.light')}
+                .disabled=${!ctx.lightObj || ctx.lightObj.state === 'unavailable'}
+                @click=${this._handleLightToggle}
+              >
+                <ha-icon icon="mdi:lightbulb"></ha-icon>
+              </ha-icon-button>
+            `
+          : nothing}
+        <ha-icon-button
+          class="row-btn ${ctx.running || ctx.lightOn ? 'power-on' : ''}"
+          .label=${localize('label.all_off')}
+          .disabled=${ctx.unavailable}
+          @click=${this._handleAllOff}
+        >
+          <ha-icon icon="mdi:power"></ha-icon>
+        </ha-icon-button>
       </ha-card>
     `;
   }
@@ -515,7 +657,6 @@ export class FanRemoteCard extends LitElement {
       .corner {
         position: absolute;
         top: 4px;
-        color: var(--secondary-text-color);
         /* 48px touch targets for the kiosk tablets. */
         --mdc-icon-button-size: 48px;
         --mdc-icon-size: 28px;
@@ -526,15 +667,19 @@ export class FanRemoteCard extends LitElement {
       .corner.top-right {
         right: 4px;
       }
-      .corner.light-on {
+
+      ha-icon-button {
+        color: var(--secondary-text-color);
+      }
+      ha-icon-button.light-on {
         color: var(--state-light-on-color, var(--amber-color, #ffc107));
       }
-      .corner.power-on {
+      ha-icon-button.power-on {
         /* Bright by design — themes' --success-color is often too muted to
            read at a glance on a wall tablet. */
         color: var(--fan-remote-power-on-color, #00c853);
       }
-      .corner[disabled] {
+      ha-icon-button[disabled] {
         color: var(--disabled-text-color);
       }
 
@@ -649,12 +794,95 @@ export class FanRemoteCard extends LitElement {
         --mdc-icon-size: 20px;
       }
 
+      /* ── Row layout (layout: row) ─────────────────────────────────────── */
+      ha-card.row-card {
+        flex-direction: row;
+        align-items: center;
+        /* Degradation strategy: when the column is too narrow for one line,
+           the controls cluster wraps below the name instead of overflowing —
+           overlapping buttons would mis-route taps (all-off under a digit). */
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 12px;
+      }
+      .row-main {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        /* Basis reserves room for name + "Speed 4 of 6 · Forward" (the
+           direction tail is the only place a stopped fan's stored direction
+           shows — it must not be the first thing clipped). */
+        flex: 1 1 190px;
+        min-width: 0;
+        cursor: pointer;
+        outline: none;
+        border-radius: 8px;
+      }
+      .row-main:focus-visible {
+        box-shadow: 0 0 0 2px var(--primary-color);
+      }
+      .row-icon {
+        flex: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--secondary-background-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .row-card .fan-icon {
+        --mdc-icon-size: 24px;
+      }
+      .row-info {
+        min-width: 0;
+      }
+      .row-card .name {
+        margin-top: 0;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row-card .status {
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row-card .segments {
+        flex: 0 2 auto;
+        /* NEVER shrink below the digit grid's track minimum: overriding the
+           base min-width: 0 is what keeps digits from sliding under the
+           direction/light/all-off buttons and mis-routing taps. */
+        min-width: min-content;
+      }
+      .row-card .segment {
+        height: 40px;
+        line-height: 40px;
+        font-size: 13px;
+        border-radius: 6px;
+      }
+      .row-card .direction {
+        flex: 0 0 44px;
+        height: 40px;
+      }
+      .dir-icon {
+        gap: 0;
+      }
+      .row-btn {
+        flex: none;
+        --mdc-icon-button-size: 40px;
+        --mdc-icon-size: 22px;
+      }
+
       /* Maintainer convention: yellow = unavailable. */
       ha-card.unavailable .fan-icon,
       ha-card.unavailable .status {
         color: var(--warning-color);
       }
-      ha-card.unavailable .center {
+      ha-card.unavailable .center,
+      ha-card.unavailable .row-main {
         cursor: default;
       }
     `;

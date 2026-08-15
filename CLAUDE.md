@@ -100,6 +100,23 @@ integration-specific and requires manually listing speed modes.
     buttons. The pressed side fills `--primary-color` only while the fan is
     on (a stopped fan has no active direction).
 - Fire the `haptic` event (`"light"`) on every button tap for the companion app.
+- **Row layout (`layout: row`, default `card`)**: compact single-line variant
+  for wide columns / entities-style stacks —
+  `[icon chip] [name+status] [1..N] [↻] [💡] [⏻]`. The circular icon chip +
+  name/status block is the master power (tap = on/off, hold = more-info, icon
+  spins while running; aria-label carries `name: status` since ARIA hides the
+  descendants). Speed digits sit where the stock slider would be (40 px tall,
+  30–40 px wide; >6 speeds stack the digits two-high like the card's wrap).
+  CRITICAL overflow rule: `.row-card .segments` keeps
+  `min-width: min-content` and the row flex-wraps — the digit grid must
+  NEVER slide under the trailing buttons (taps would mis-route to
+  direction/light/all-off; found by review, verified by hit-testing). In
+  too-narrow columns the controls wrap to a second line instead. With
+  `show_speeds: false` + direction, an icon-only F/R pair replaces the
+  digits. Light and all-off are 40 px icon buttons at the row's end, same
+  color-state conventions as the card corners. Same handlers, same
+  interaction model — layout only. Sizing: rows 1 (2 when digits stack);
+  `min_columns: 12` whenever digits show, 6 otherwise.
 
 ## Interaction model — physical-remote parity (ground truth: sister project)
 
@@ -151,6 +168,7 @@ entity: fan.green_fan                # required, domain: fan
 light_entity: light.green_fan_light  # optional
 name: Green Fan                      # optional, defaults to friendly_name
 icon: mdi:ceiling-fan                # optional, default mdi:fan (spins while on)
+layout: card                         # optional, card (default) | row (compact one-liner)
 show_speeds: true                    # optional, default true; false = fan ignores speed
 show_direction: false                # optional, default false
 speed_count: 6                       # optional override, see derivation rules

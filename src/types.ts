@@ -13,6 +13,7 @@ export interface FanRemoteCardConfig extends LovelaceCardConfig {
   light_entity?: string;
   name?: string;
   icon?: string;
+  layout?: 'card' | 'row';
   show_speeds?: boolean;
   show_direction?: boolean;
   speed_count?: number;

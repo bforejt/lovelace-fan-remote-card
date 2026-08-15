@@ -16,6 +16,7 @@
     "entity_not_fan": "Entity must be from the fan domain, got: ",
     "speed_count_invalid": "speed_count must be an integer between 2 and 10",
     "default_speed_invalid": "default_speed must be an integer between 1 and 10 and must not exceed speed_count",
+    "layout_invalid": "layout must be 'card' or 'row'",
     "entity_not_found": "Entity not found: ",
     "no_discrete_speeds": "This entity does not expose discrete speeds (no percentage_step attribute). Set speed_count in the card config, or use a stock fan card."
   },

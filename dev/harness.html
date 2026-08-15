@@ -11,6 +11,7 @@
     --state-light-on-color: #ffc107;
   }
   .col { width: 330px; display: flex; flex-direction: column; gap: 12px; }
+  .col.wide { width: 640px; margin-top: 16px; }
   ha-card { display: block; background: var(--card-background-color); border-radius: 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,.15); }
   ha-icon { display: inline-flex; }
@@ -19,6 +20,7 @@
 </head>
 <body>
 <div class="col" id="cards"></div>
+<div class="col wide" id="cards-wide"></div>
 <div id="log"></div>
 <script>
   // Real MDI path data (@mdi/svg@7) so the harness renders what HA renders.
@@ -96,13 +98,13 @@
       log(`callService: ${domain}.${service} ${JSON.stringify(data)}`),
   });
 
-  function addCard(id, config, fanState, lightState) {
+  function addCard(id, config, fanState, lightState, containerId = 'cards') {
     const el = document.createElement('fan-remote-card');
     el.id = id;
     el.setConfig(config);
     el.hass = mkHass(fanState, lightState);
     el.addEventListener('hass-more-info', (ev) => log('hass-more-info: ' + ev.detail.entityId));
-    document.getElementById('cards').appendChild(el);
+    document.getElementById(containerId).appendChild(el);
     return el;
   }
 </script>
@@ -134,6 +136,32 @@
   // 8: same fan, off -> neither direction active; F/R tap starts the fan
   addCard('c8', { type: 'custom:fan-remote-card', entity: 'fan.test_fan', name: 'Sunroom Fan',
     show_speeds: false, show_direction: true, default_speed: 2 }, mkFan('off', 0), 'off');
+
+  // Row layout (wide column): compact one-liner variants
+  // r1: on speed 4, light on, direction -> digits + toggle + bulb + power in one bar
+  addCard('r1', { type: 'custom:fan-remote-card', entity: 'fan.test_fan', name: 'Office Fan',
+    layout: 'row', light_entity: 'light.test_light', show_direction: true },
+    mkFan('on', 67), 'on', 'cards-wide');
+  // r2: all off -> gray everything, still one press to any speed
+  addCard('r2', { type: 'custom:fan-remote-card', entity: 'fan.test_fan', name: 'Guest Fan',
+    layout: 'row', light_entity: 'light.test_light', show_direction: true },
+    mkFan('off', 0), 'off', 'cards-wide');
+  // r3: speed-ignoring fan -> icon-only F/R pair in the bar
+  addCard('r3', { type: 'custom:fan-remote-card', entity: 'fan.test_fan', name: 'Green Fan',
+    layout: 'row', light_entity: 'light.test_light', show_speeds: false, show_direction: true },
+    mkFan('on', 33, { direction: 'reverse' }), 'off', 'cards-wide');
+  // r4: unavailable row
+  addCard('r4', { type: 'custom:fan-remote-card', entity: 'fan.test_fan', name: 'Porch Fan',
+    layout: 'row', light_entity: 'light.test_light' }, mkFan('unavailable', null), 'on', 'cards-wide');
+  // r5: row squeezed into the narrow 330px column -> controls wrap to a
+  //     second line; digits must NEVER overlap the trailing buttons
+  addCard('r5', { type: 'custom:fan-remote-card', entity: 'fan.test_fan',
+    name: 'Very Long Fan Name Here', layout: 'row', light_entity: 'light.test_light',
+    show_direction: true }, mkFan('on', 100));
+  // r6: 10-speed row -> digits stack two-high inside the bar
+  addCard('r6', { type: 'custom:fan-remote-card', entity: 'fan.test_fan', name: 'Big Fan',
+    layout: 'row', light_entity: 'light.test_light', show_direction: true, speed_count: 10 },
+    mkFan('on', 70, { percentage_step: 10 }), 'on', 'cards-wide');
 
   // Live-update self-test: cards MUST re-render when hass is reassigned.
   // Guards against the Lit + useDefineForClassFields field-shadowing trap,

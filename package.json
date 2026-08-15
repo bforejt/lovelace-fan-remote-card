@@ -1,7 +1,7 @@
 {
   "name": "fan-remote-card",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packageManager": "yarn@4.12.0",
   "description": "Lovelace card that controls multi-speed fans the way their physical remote works: discrete speed buttons, all-off, light, and direction",
   "keywords": [

@@ -15,6 +15,18 @@ const SCHEMA: SchemaItem[] = [
   { name: 'light_entity', selector: { entity: { domain: 'light' } } },
   { name: 'name', selector: { text: {} } },
   { name: 'icon', selector: { icon: {} } },
+  {
+    name: 'layout',
+    selector: {
+      select: {
+        options: [
+          { value: 'card', label: 'Card (default)' },
+          { value: 'row', label: 'Row — compact single line' },
+        ],
+        mode: 'dropdown',
+      },
+    },
+  },
   { name: 'show_speeds', selector: { boolean: {} } },
   { name: 'show_direction', selector: { boolean: {} } },
   { name: 'speed_count', selector: { number: { min: 2, max: 10, step: 1, mode: 'box' } } },
@@ -26,6 +38,7 @@ const LABELS: Record<string, string> = {
   light_entity: 'Light entity',
   name: 'Name',
   icon: 'Icon',
+  layout: 'Layout',
   show_speeds: 'Show speed buttons',
   show_direction: 'Show direction control',
   speed_count: 'Speed count override',

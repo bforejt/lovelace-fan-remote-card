@@ -80,6 +80,7 @@ all_off_action:                      # optional, standard HA action config
 | `light_entity`   | string  | —               | A `light.` entity; renders the top-right light toggle                                                            |
 | `name`           | string  | `friendly_name` | Card title under the icon                                                                                        |
 | `icon`           | string  | `mdi:fan`       | Center icon; gray when off, colored and spinning while the fan is on                                             |
+| `layout`         | string  | `card`          | `row` renders a compact single-line variant: icon + name, speed digits, direction, light, all-off in one bar     |
 | `show_speeds`    | boolean | `true`          | Set `false` for fans that ignore speed (forward/reverse/off units): hides the speed buttons                      |
 | `show_direction` | boolean | `false`         | Direction control; only rendered when the entity supports direction                                              |
 | `speed_count`    | integer | derived         | Number of speed buttons (2–10). Overrides the derived value                                                      |
@@ -116,6 +117,17 @@ direction (e.g. `Off · Reverse`) — that's the direction a turn-on will use.
 | ⏻ (top-left)     | All off: fan + light, or `all_off_action`. Green while anything is on |  |
 | 💡 (top-right)   | `light.toggle`                                  |           |
 | Direction        | `fan.set_direction`; from off also `fan.turn_on` (starts the fan) |   |
+
+### Row layout
+
+`layout: row` compresses the whole card into one line for wide columns —
+the icon chip and name act as the master power, the speed digits replace
+the percentage slider a stock row would show, and direction, light, and
+all-off ride at the end of the bar. All behavior is identical to the full
+card; it's purely a layout change. A full-featured 6-speed row needs a wide
+column (~600 px+) for a single line; in narrower columns the controls wrap
+onto a second line (never overlapping), and fans with more than 6 speeds
+stack their digits two-high.
 
 ### Fans that ignore speed
 
