@@ -257,6 +257,16 @@ active = (state === 'on' && attributes.percentage != null)
 - Localization: en only for v1; keep the boilerplate localize plumbing, trim
   unused languages.
 
+## Documentation screenshots
+
+README images live in `docs/images/` and are generated, never hand-captured:
+`dev/screenshot.html` renders the built card against HA's stock theme tokens
+with a mock hass (light + dark), and `dev/shoot.sh` drives headless Chrome at
+2x DPI, sizing each capture from the page's own measured content box
+(`body[data-size]`) so images stay tight with no dead space. Regenerate with
+`yarn build && dev/shoot.sh` whenever the layout changes; the fan icon's spin
+is frozen at a fixed angle so re-runs produce identical images.
+
 ## HACS publishing
 
 `hacs.json` at repo root:

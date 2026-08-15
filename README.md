@@ -13,19 +13,12 @@ Stock and mushroom fan cards render a percentage *slider* — a lossy continuous
 UI over what is, for most ceiling fans, discrete absolute state. If your remote
 has six buttons, your dashboard should too.
 
-```text
-┌─────────────────────────────────┐
-│ [⏻]                        [💡] │
-│                                 │
-│            (fan icon)           │
-│            Green Fan            │
-│          Speed 4 of 6           │
-│                                 │
-│  ┌───┬───┬───┬───┬───┬───┐ (↻)  │
-│  │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │      │
-│  └───┴───┴───┴───┴───┴───┘      │
-└─────────────────────────────────┘
-```
+<img src="docs/images/card.png" alt="Fan Remote Card: power and light corners, spinning fan icon, Office Fan at Speed 4 of 6 with six speed buttons and a direction toggle" width="370">
+
+Two layouts, same behavior — the full card above, or a compact one-liner for
+wide columns:
+
+<img src="docs/images/row-stack.png" alt="Row layout: Office Fan running at speed 4, Guest Fan off, and Green Fan in reverse — each a single line with speed digits, direction, light, and all-off" width="660">
 
 Entity-generic: works with any Home Assistant `fan` entity that exposes
 discrete speeds via `percentage_step` (ESPHome, Bond, Tuya, SmartWings, Zigbee
@@ -120,6 +113,8 @@ direction (e.g. `Off · Reverse`) — that's the direction a turn-on will use.
 
 ### Row layout
 
+<img src="docs/images/row.png" alt="Row layout single card" width="660">
+
 `layout: row` compresses the whole card into one line for wide columns —
 the icon chip and name act as the master power, the speed digits replace
 the percentage slider a stock row would show, and direction, light, and
@@ -130,6 +125,8 @@ onto a second line (never overlapping), and fans with more than 6 speeds
 stack their digits two-high.
 
 ### Fans that ignore speed
+
+<img src="docs/images/card-direction.png" alt="Direction-only card: Green Fan on and running in reverse, with Forward and Reverse buttons in place of speeds" width="370">
 
 Some fans (certain forward/reverse/off canopy modules) accept speed frames
 but don't act on them. Set `show_speeds: false` to drop the speed row; with
@@ -142,6 +139,8 @@ For one-way RF fans (assumed-state entities), HA is the source of truth by
 definition.
 
 ## Theming
+
+<img src="docs/images/card-dark.png" alt="Full card in a dark theme" width="330"> <img src="docs/images/row-dark.png" alt="Row layout in a dark theme" width="590">
 
 Colors come entirely from HA theme variables (`--primary-color`,
 `--secondary-background-color`, `--warning-color`, …). Unavailable entities are
@@ -156,6 +155,7 @@ corepack enable
 yarn install
 yarn start        # dev server on :5000 with watch
 yarn build        # lint + bundle to dist/fan-remote-card.js
+dev/shoot.sh      # regenerate docs/images/*.png from dev/screenshot.html
 ```
 
 The included devcontainer starts a Home Assistant instance at

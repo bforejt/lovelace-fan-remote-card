@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>fan-remote-card screenshots</title>
+<!--
+  Documentation screenshot rig. Renders the real built card against Home
+  Assistant's stock theme tokens with a mock hass, so README images can be
+  regenerated deterministically:
+
+    dev/shoot.sh        (headless Chrome, 2x DPI -> docs/images/*.png)
+
+  Query params: ?shot=card|row|row-dir|card-dir&theme=light|dark
+-->
+<style>
+  :root {
+    /* Home Assistant default (light) theme tokens. */
+    --primary-color: #03a9f4;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --disabled-text-color: #bdbdbd;
+    --warning-color: #ffa600;
+    --card-background-color: #fff;
+    --secondary-background-color: #e0e0e0;
+    --text-primary-color: #fff;
+    --state-light-on-color: #fdd835;
+    --ha-card-border-radius: 12px;
+    --page-bg: #f2f4f7;
+    --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+  html.dark {
+    --primary-color: #03a9f4;
+    --primary-text-color: #e1e1e1;
+    --secondary-text-color: #9b9b9b;
+    --disabled-text-color: #545454;
+    --warning-color: #ffa600;
+    --card-background-color: #1c1c1c;
+    --secondary-background-color: #2c2c2c;
+    --text-primary-color: #212121;
+    --state-light-on-color: #fdd835;
+    --page-bg: #111213;
+    --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--page-bg);
+    font-family: Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: max-content;
+  }
+  ha-icon { display: inline-flex; }
+  .stage { display: flex; flex-direction: column; gap: 16px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script>
+  const PATHS = {
+    'mdi:power':
+      'M16.56,5.44L15.11,6.89C16.84,7.94 18,9.83 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12C6,9.83 7.16,7.94 8.88,6.88L7.44,5.44C5.36,6.88 4,9.28 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12C20,9.28 18.64,6.88 16.56,5.44M13,3H11V13H13V3Z',
+    'mdi:lightbulb':
+      'M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z',
+    'mdi:fan':
+      'M12,11A1,1 0 0,0 11,12A1,1 0 0,0 12,13A1,1 0 0,0 13,12A1,1 0 0,0 12,11M12.5,2C17,2 17.11,5.57 14.75,6.75C13.76,7.24 13.32,8.29 13.13,9.22C13.61,9.42 14.03,9.73 14.35,10.13C18.05,8.13 22.03,8.92 22.03,12.5C22.03,17 18.46,17.1 17.28,14.73C16.78,13.74 15.72,13.3 14.79,13.11C14.59,13.59 14.28,14 13.88,14.34C15.87,18.03 15.08,22 11.5,22C7,22 6.91,18.42 9.27,17.24C10.25,16.75 10.69,15.71 10.89,14.79C10.4,14.59 9.97,14.27 9.65,13.87C5.96,15.85 2,15.07 2,11.5C2,7 5.56,6.89 6.74,9.26C7.24,10.25 8.29,10.68 9.22,10.87C9.41,10.39 9.73,9.97 10.14,9.65C8.15,5.96 8.94,2 12.5,2Z',
+    'mdi:rotate-right':
+      'M16.89,15.5L18.31,16.89C19.21,15.73 19.76,14.39 19.93,13H17.91C17.77,13.87 17.43,14.72 16.89,15.5M13,17.9V19.92C14.39,19.75 15.74,19.21 16.9,18.31L15.46,16.87C14.71,17.41 13.87,17.76 13,17.9M19.93,11C19.76,9.61 19.21,8.27 18.31,7.11L16.89,8.53C17.43,9.28 17.77,10.13 17.91,11M15.55,5.55L11,1V4.07C7.06,4.56 4,7.92 4,12C4,16.08 7.05,19.44 11,19.93V17.91C8.16,17.43 6,14.97 6,12C6,9.03 8.16,6.57 11,6.09V10L15.55,5.55Z',
+    'mdi:rotate-left':
+      'M13,4.07V1L8.45,5.55L13,10V6.09C15.84,6.57 18,9.03 18,12C18,14.97 15.84,17.43 13,17.91V19.93C16.95,19.44 20,16.08 20,12C20,7.92 16.95,4.56 13,4.07M7.1,18.32C8.26,19.22 9.61,19.76 11,19.93V17.9C10.13,17.75 9.29,17.41 8.54,16.87L7.1,18.32M6.09,13H4.07C4.24,14.39 4.79,15.73 5.69,16.89L7.1,15.47C6.58,14.72 6.23,13.88 6.09,13M7.11,8.53L5.7,7.11C4.8,8.27 4.24,9.61 4.07,11H6.09C6.23,10.13 6.58,9.28 7.11,8.53Z',
+  };
+  // Real ha-card paints its own surface from inside its shadow root — the
+  // card renders it within ITS shadow root, so page-level CSS cannot reach it.
+  customElements.define('ha-card', class extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' }).innerHTML =
+        '<style>:host{display:block;background:var(--card-background-color);' +
+        'border-radius:var(--ha-card-border-radius,12px);' +
+        'box-shadow:var(--card-shadow);box-sizing:border-box}</style><slot></slot>';
+    }
+  });
+  customElements.define('ha-icon', class extends HTMLElement {
+    static observedAttributes = ['icon'];
+    constructor() { super(); this.attachShadow({ mode: 'open' }); }
+    attributeChangedCallback() {
+      const d = PATHS[this.getAttribute('icon')];
+      this.shadowRoot.innerHTML =
+        '<style>svg{width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);fill:currentColor;display:block}</style>' +
+        (d ? `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>` : '');
+    }
+  });
+  customElements.define('ha-icon-button', class extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' }).innerHTML =
+        '<style>:host{display:inline-flex}button{display:flex;align-items:center;' +
+        'justify-content:center;width:var(--mdc-icon-button-size,48px);' +
+        'height:var(--mdc-icon-button-size,48px);border:none;border-radius:50%;' +
+        'background:transparent;color:inherit;cursor:pointer;padding:0}</style>' +
+        '<button><slot></slot></button>';
+    }
+    set disabled(v) { this.shadowRoot.querySelector('button').disabled = !!v; }
+    set label(v) { this.setAttribute('aria-label', v); }
+  });
+  customElements.define('hui-error-card', class extends HTMLElement {
+    setConfig() {}
+  });
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('theme') === 'dark') document.documentElement.classList.add('dark');
+
+  const fan = (name, state, pct, extra = {}) => ({
+    entity_id: 'fan.demo', state,
+    attributes: { percentage: pct, percentage_step: 100 / 6, friendly_name: name,
+      supported_features: 61, direction: 'forward', ...extra },
+  });
+  const hass = (fanState, lightState) => ({
+    states: { 'fan.demo': fanState, 'light.demo': { entity_id: 'light.demo', state: lightState, attributes: {} } },
+    callService: () => {},
+  });
+
+  function place(config, fanState, lightState, width) {
+    const holder = document.createElement('div');
+    holder.style.width = width + 'px';
+    const el = document.createElement('fan-remote-card');
+    el.setConfig(config);
+    el.hass = hass(fanState, lightState);
+    holder.appendChild(el);
+    document.getElementById('stage').appendChild(holder);
+  }
+</script>
+<script type="module">
+  import '/dist/fan-remote-card.js';
+  const params = new URLSearchParams(location.search);
+  const shot = params.get('shot') || 'card';
+  const base = { type: 'custom:fan-remote-card', entity: 'fan.demo', light_entity: 'light.demo' };
+
+  if (shot === 'card') {
+    // Full card: running at speed 4 of 6, light on, direction shown.
+    place({ ...base, name: 'Office Fan', show_direction: true },
+      fan('Office Fan', 'on', 67), 'on', 330);
+  } else if (shot === 'card-dir') {
+    // Direction-only card for fans that ignore speed.
+    place({ ...base, name: 'Green Fan', show_speeds: false, show_direction: true },
+      fan('Green Fan', 'on', 50, { direction: 'reverse' }), 'off', 330);
+  } else if (shot === 'row') {
+    // Compact row: same fan, one line.
+    place({ ...base, name: 'Office Fan', show_direction: true, layout: 'row' },
+      fan('Office Fan', 'on', 67), 'on', 620);
+  } else if (shot === 'row-dir') {
+    place({ ...base, name: 'Green Fan', show_speeds: false, show_direction: true, layout: 'row' },
+      fan('Green Fan', 'on', 50, { direction: 'reverse' }), 'off', 620);
+  } else if (shot === 'both') {
+    place({ ...base, name: 'Office Fan', show_direction: true, layout: 'row' },
+      fan('Office Fan', 'on', 67), 'on', 620);
+    place({ ...base, name: 'Guest Fan', show_direction: true, layout: 'row' },
+      fan('Guest Fan', 'off', 0), 'off', 620);
+    place({ ...base, name: 'Green Fan', show_speeds: false, show_direction: true, layout: 'row' },
+      fan('Green Fan', 'on', 50, { direction: 'reverse' }), 'off', 620);
+  }
+  // Freeze the fan spin at a consistent angle so repeat captures match.
+  requestAnimationFrame(() => {
+    document.querySelectorAll('fan-remote-card').forEach((c) => {
+      c.shadowRoot.querySelectorAll('.fan-icon').forEach((i) => {
+        i.style.animation = 'none';
+        i.style.transform = 'rotate(18deg)';
+      });
+    });
+    // Publish the exact content box so dev/shoot.sh can size each capture
+    // (read via `chrome --dump-dom`); keeps images tight with no dead space.
+    const r = document.getElementById('stage').getBoundingClientRect();
+    document.body.dataset.size = `${Math.ceil(r.width + 40)}x${Math.ceil(r.height + 40)}`;
+    document.body.dataset.ready = '1';
+  });
+</script>
+</body>
+</html>
